@@ -1,10 +1,14 @@
 import networkx as nx
+import random
 from qubovert import QUBO
 from qubovert.sim import anneal_qubo
+from dwave.system import DWaveSampler
+from dwave_neal import Neal
+from dimod import BinaryQuadraticModel
 
-# Create a graph
-G = nx.Graph()
-G.add_edges_from([(0, 1), (1, 2), (2, 3), (3, 0)])
+# Create a random graph
+num_nodes = random.randint(5, 10)
+G = nx.gnm_random_graph(num_nodes, random.randint(num_nodes, num_nodes * 2))
 
 # Formulate QUBO
 Q = QUBO()
@@ -13,7 +17,15 @@ for (u, v) in G.edges():
     Q[(v, v)] += 1
     Q[(u, v)] -= 2
 
-# Solve using simulated annealing
-result = anneal_qubo(Q, num_anneals=10)
-cut = result.best.state
-print(cut) 
+
+# Define your QUBO problem
+bqm = BinaryQuadraticModel.from_qubo(Q)
+
+# Create a Neal sampler
+sampler = Neal()
+
+# Sample the QUBO
+sampleset = sampler.sample(bqm, num_reads=1000)
+
+# Print the results
+print(sampleset)
