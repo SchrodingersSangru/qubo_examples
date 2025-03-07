@@ -1,6 +1,6 @@
 import networkx as nx
 import random
-from dwave_neal import Neal
+from neal import Neal
 from dimod import BinaryQuadraticModel
 
 # Generate a random graph
