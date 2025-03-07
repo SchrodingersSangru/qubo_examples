@@ -1,10 +1,10 @@
 import numpy as np
 import random
-from dwave_neal import Neal
+from neal import Neal
 from dimod import BinaryQuadraticModel
 
 # Get number of cities from user
-num_cities = int(input("Enter the number of cities: "))
+num_cities =  7 # int(input("Enter the number of cities: "))
 
 # Generate random distance matrix
 distances = np.random.randint(1, 100, size=(num_cities, num_cities))
