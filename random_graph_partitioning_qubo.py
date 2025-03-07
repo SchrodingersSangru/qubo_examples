@@ -1,15 +1,31 @@
 import networkx as nx
 import random
-import math
+import neal
+import dimod
+import matplotlib
 
 def create_random_graph(n, p):
-    return nx.erdos_renyi_graph(n, p)
+    G = nx.erdos_renyi_graph(n, p)
+    return G
 
-def initial_partition(G):
-    nodes = list(G.nodes())
-    random.shuffle(nodes)
-    mid = len(nodes) // 2
-    return set(nodes[:mid]), set(nodes[mid:])
+def graph_to_bqm(G):
+    # Create a binary quadratic model (BQM) from the graph
+    bqm = dimod.BinaryQuadraticModel.empty(dimod.BINARY)
+    
+    # Add interactions between nodes
+    for u, v in G.edges():
+        bqm.add_interaction(u, v, 1)
+    
+    # Add a penalty term to encourage balanced partitions
+    for node in G.nodes():
+        bqm.add_variable(node, -1)
+    
+    return bqm
+
+def partition_from_sample(sample):
+    partition_0 = set(node for node, value in sample.items() if value == 0)
+    partition_1 = set(node for node, value in sample.items() if value == 1)
+    return partition_0, partition_1
 
 def cut_size(G, partition):
     cut = 0
@@ -18,50 +34,33 @@ def cut_size(G, partition):
             cut += 1
     return cut
 
-def simulated_annealing(G, initial_temp, cooling_rate, num_iterations):
-    current_partition = initial_partition(G)
-    current_cut = cut_size(G, current_partition)
-    best_partition = current_partition
-    best_cut = current_cut
-    temp = initial_temp
-
-    for _ in range(num_iterations):
-        # Choose a random node to move
-        part = random.choice([0, 1])
-        if len(current_partition[part]) > 1:
-            node = random.choice(list(current_partition[part]))
-            new_partition = (
-                current_partition[0] - {node} if part == 0 else current_partition[0] | {node},
-                current_partition[1] | {node} if part == 0 else current_partition[1] - {node}
-            )
-            new_cut = cut_size(G, new_partition)
-
-            # Decide whether to accept the new partition
-            delta = new_cut - current_cut
-            if delta < 0 or random.random() < math.exp(-delta / temp):
-                current_partition = new_partition
-                current_cut = new_cut
-                if current_cut < best_cut:
-                    best_partition = current_partition
-                    best_cut = current_cut
-
-        # Cool down the temperature
-        temp *= cooling_rate
-
-    return best_partition, best_cut
-
 # Parameters
 n = 100  # number of nodes
 p = 0.1  # probability of edge creation
-initial_temp = 10.0
-cooling_rate = 0.995
-num_iterations = 10000
+num_reads = 1000  # number of samples to collect
 
 # Create random graph
 G = create_random_graph(n, p)
 
-# Perform simulated annealing
-best_partition, best_cut = simulated_annealing(G, initial_temp, cooling_rate, num_iterations)
+nx.draw(G, with_labels=True)
+
+# Convert graph to BQM
+bqm = graph_to_bqm(G)
+
+# Create a simulated annealing sampler
+sampler = neal.SimulatedAnnealingSampler()
+
+# Run simulated annealing
+sampleset = sampler.sample(bqm, num_reads=num_reads)
+
+# Get the best sample
+best_sample = sampleset.first.sample
+
+# Convert the best sample to a partition
+best_partition = partition_from_sample(best_sample)
+
+# Calculate the cut size of the best partition
+best_cut = cut_size(G, best_partition)
 
 print(f"Best partition cut size: {best_cut}")
 print(f"Partition sizes: {len(best_partition[0])}, {len(best_partition[1])}")
